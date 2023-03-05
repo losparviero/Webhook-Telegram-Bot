@@ -52,38 +52,50 @@ bot.command("setwebhook", async (ctx) => {
     const hookUrl = matches[2];
     const webhookUrl =
       "https://api.telegram.org/bot" + botToken + "/setWebhook";
-    (async () => {
-      try {
-        const response = await axios.post(
-          webhookUrl,
+    try {
+      const data = JSON.stringify({ url: hookUrl });
+      const options = {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      };
+      const response = await new Promise((resolve, reject) => {
+        const req = https.request(webhookUrl, options, (res) => {
+          let body = "";
+          res.on("data", (chunk) => {
+            body += chunk;
+          });
+          res.on("end", () => {
+            resolve({
+              status: res.statusCode,
+              body: JSON.parse(body),
+            });
+          });
+        });
+        req.on("error", (error) => {
+          reject(error);
+        });
+        req.write(data);
+        req.end();
+      });
+      if (response.body.result) {
+        await ctx.reply(
+          `*Webhook was set successfully.*\n_Message from Telegram:_ ${response.body.description}.`,
           {
-            url: hookUrl,
-          },
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
+            parse_mode: "Markdown",
           }
         );
-
-        if (response.data.result) {
-          await ctx.reply(
-            `*Webhook was set successfully.*\n_Message from Telegram:_ ${response.data.description}.`,
-            {
-              parse_mode: "Markdown",
-            }
-          );
-          console.log(response.data);
-        } else {
-          await ctx.reply(
-            `*Webhook could'nt be set. Error:* ${response.data.description}`,
-            { parse_mode: "Markdown" }
-          );
-        }
-      } catch (error) {
-        console.error(error);
+        console.log(response.body);
+      } else {
+        await ctx.reply(
+          `*Webhook couldn't be set. Error:* ${response.body.description}`,
+          { parse_mode: "Markdown" }
+        );
       }
-    })();
+    } catch (error) {
+      console.error(error);
+    }
   }
 });
 
