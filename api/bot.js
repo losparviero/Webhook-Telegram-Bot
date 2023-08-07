@@ -19,16 +19,8 @@ const https = require("https");
 
 const bot = new Bot(process.env.BOT_TOKEN);
 
-// Concurrency
-
-function getSessionKey(ctx) {
-  return ctx.chat?.id.toString();
-}
-
 // Plugins
 
-bot.use(sequentialize(getSessionKey));
-bot.use(session({ getSessionKey }));
 bot.use(responseTime);
 bot.use(log);
 
