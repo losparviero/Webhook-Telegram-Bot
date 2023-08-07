@@ -1,17 +1,69 @@
+#!/usr/bin/env node
+
+/*!
+ * Webhook Telegram Bot
+ * Copyright (c) 2023
+ *
+ * @author Zubin
+ * @username (GitHub) losparviero
+ * @license AGPL-3.0
+ */
+
+// Add env vars as a preliminary
+
 require("dotenv").config();
 const { Bot, webhookCallback, GrammyError, HttpError } = require("grammy");
+const { hydrate } = require("@grammyjs/hydrate");
 const https = require("https");
 
 // Bot
 
 const bot = new Bot(process.env.BOT_TOKEN);
 
+// Concurrency
+
+function getSessionKey(ctx) {
+  return ctx.chat?.id.toString();
+}
+
+// Plugins
+
+bot.use(sequentialize(getSessionKey));
+bot.use(session({ getSessionKey }));
+bot.use(hydrate());
+bot.use(responseTime);
+bot.use(log);
+
+// Response
+
+async function responseTime(ctx, next) {
+  const before = Date.now();
+  await next();
+  const after = Date.now();
+  console.log(`Response time: ${after - before} ms`);
+}
+
+// Log
+
+async function log(ctx, next) {
+  const from = ctx.from;
+  const name =
+    from.last_name === undefined
+      ? from.first_name
+      : `${from.first_name} ${from.last_name}`;
+  console.log(
+    `From: ${name} (@${from.username}) ID: ${from.id}\nMessage: ${ctx.message.text}`
+  );
+
+  await next();
+}
+
 // Commands
 
 bot.command("start", async (ctx) => {
   await ctx
     .reply(
-      "*Welcome!* ✨\n_You can set Telegram webhooks with this bot._\n\n*Here are the steps to set:*\n_1. Use the /setwebhook command.\n2. Format the message like this\n/setwebhook <bot token> <webhook url>_",
+      "*Welcome!* ✨\n_You can set or delete Telegram webhooks with this bot._\n\n*Here are the steps to set webhook:*\n_1. Use the /set command.\n2. Format the message like this\n/set <bot token> <webhook url>_\n\n*Here are the steps to delete webhook:*\n\n_1. Use the /del command.\n2. Format the message like this\n/del <bot token> <wehook url>_",
       {
         parse_mode: "Markdown",
       }
@@ -22,7 +74,7 @@ bot.command("start", async (ctx) => {
 bot.command("help", async (ctx) => {
   await ctx
     .reply(
-      "*@anzubo Project.*\n\n_This is a bot for setting webhooks for your Telegram bot projects._",
+      "*@anzubo Project.*\n\n_This is a bot for utilising webhooks for your Telegram bot projects._",
       { parse_mode: "Markdown" }
     )
     .then(console.log("Help command sent to", ctx.from.id));
@@ -30,20 +82,20 @@ bot.command("help", async (ctx) => {
 
 // List
 
-bot.command("cmd", async (ctx) => {
+bot.command("list", async (ctx) => {
   await ctx
     .reply(
-      `*Here are the commands available:*\n\n_/start Start the bot\n/help Know more\n/setwebhook <token> <url>_`,
+      `*Here are the commands available:*\n\n_/start Start the bot\n/help Know more\n/set <token> <url>\n/del <token> <url>_`,
       { parse_mode: "Markdown" }
     )
     .then(console.log("Help command sent to", ctx.from.id));
 });
 
-// Webhook
+// Set
 
-bot.command("setwebhook", async (ctx) => {
+bot.command("set", async (ctx) => {
   const input = ctx.msg.text;
-  const regex = /^\/setwebhook\s+(\S+)\s+(\S+)/;
+  const regex = /^\/set\s+(\S+)\s+(\S+)/;
   const matches = input.match(regex);
   if (!matches) {
     console.log("Invalid input format");
@@ -52,101 +104,127 @@ bot.command("setwebhook", async (ctx) => {
     const hookUrl = matches[2];
     const webhookUrl =
       "https://api.telegram.org/bot" + botToken + "/setWebhook";
-    try {
-      const data = JSON.stringify({ url: hookUrl });
-      const options = {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      };
-      const response = await new Promise((resolve, reject) => {
-        const req = https.request(webhookUrl, options, (res) => {
-          let body = "";
-          res.on("data", (chunk) => {
-            body += chunk;
-          });
-          res.on("end", () => {
-            resolve({
-              status: res.statusCode,
-              body: JSON.parse(body),
-            });
+
+    const data = JSON.stringify({ url: hookUrl });
+    const options = {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    };
+    const response = await new Promise((resolve, reject) => {
+      const req = https.request(webhookUrl, options, (res) => {
+        let body = "";
+        res.on("data", (chunk) => {
+          body += chunk;
+        });
+        res.on("end", () => {
+          resolve({
+            status: res.statusCode,
+            body: JSON.parse(body),
           });
         });
-        req.on("error", (error) => {
-          reject(error);
-        });
-        req.write(data);
-        req.end();
       });
-      if (response.body.result) {
-        await ctx.reply(
-          `*Webhook was set successfully.*\n_Message from Telegram:_ ${response.body.description}.`,
-          {
-            parse_mode: "Markdown",
-          }
-        );
-        console.log(response.body);
-      } else {
-        await ctx.reply(
-          `*Webhook couldn't be set. Error:* ${response.body.description}`,
-          { parse_mode: "Markdown" }
-        );
-      }
-    } catch (error) {
-      console.error(error);
+      req.on("error", (error) => {
+        reject(error);
+      });
+      req.write(data);
+      req.end();
+    });
+    if (response.body.result) {
+      await ctx.reply(
+        `*Webhook was set successfully.*\n_Message from Telegram:_ ${response.body.description}.`,
+        {
+          parse_mode: "Markdown",
+        }
+      );
+      console.log(response.body);
+    } else {
+      await ctx.reply(
+        `*Webhook couldn't be set. Error:* ${response.body.description}`,
+        { parse_mode: "Markdown" }
+      );
+    }
+  }
+});
+
+// Delete
+
+bot.command("del", async (ctx) => {
+  const input = ctx.msg.text;
+  const regex = /^\/del\s+(\S+)\s+(\S+)/;
+  const matches = input.match(regex);
+  if (!matches) {
+    console.log("Invalid input format");
+  } else {
+    const botToken = matches[1];
+    const hookUrl = matches[2];
+    const webhookUrl =
+      "https://api.telegram.org/bot" + botToken + "/deleteWebhook";
+
+    const data = JSON.stringify({ url: hookUrl });
+    const options = {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    };
+    const response = await new Promise((resolve, reject) => {
+      const req = https.request(webhookUrl, options, (res) => {
+        let body = "";
+        res.on("data", (chunk) => {
+          body += chunk;
+        });
+        res.on("end", () => {
+          resolve({
+            status: res.statusCode,
+            body: JSON.parse(body),
+          });
+        });
+      });
+      req.on("error", (error) => {
+        reject(error);
+      });
+      req.write(data);
+      req.end();
+    });
+    if (response.body.result) {
+      await ctx.reply(
+        `*Webhook was deleted successfully.*\n_Message from Telegram:_ ${response.body.description}.`,
+        {
+          parse_mode: "Markdown",
+        }
+      );
+      console.log(response.body);
+    } else {
+      await ctx.reply(
+        `*Webhook couldn't be deleted. Error:* ${response.body.description}`,
+        { parse_mode: "Markdown" }
+      );
     }
   }
 });
 
 // Messages
 
-bot.on("msg", async (ctx) => {
-  try {
-    const statusMessage = await ctx.reply(
-      `*Wrong format. You have to use the /setwebhook command.*`,
-      {
-        parse_mode: "Markdown",
-      }
-    );
-    async function deleteMessageWithDelay(fromId, messageId, delayMs) {
-      return new Promise((resolve, reject) => {
-        setTimeout(() => {
-          bot.api
-            .deleteMessage(fromId, messageId)
-            .then(() => resolve())
-            .catch((error) => reject(error));
-        }, delayMs);
-      });
+bot.on("message:text", async (ctx) => {
+  const statusMessage = await ctx.reply(
+    `*Wrong format. You have to use the /set or /del commands.\nFor a full list of commands tap on /list.*`,
+    {
+      parse_mode: "Markdown",
     }
-    await deleteMessageWithDelay(ctx.from.id, statusMessage.message_id, 5000);
-  } catch (error) {
-    if (error instanceof GrammyError) {
-      if (error.message.includes("Forbidden: bot was blocked by the user")) {
-        console.log("Bot was blocked by the user");
-      } else if (error.message.includes("Call to 'sendMessage' failed!")) {
-        console.log("Error sending message: ", error);
-        await ctx.reply(`*Error contacting Telegram.*`, {
-          parse_mode: "Markdown",
-          reply_to_message_id: ctx.msg.message_id,
-        });
-      } else {
-        await ctx.reply(`*An error occurred: ${error.message}*`, {
-          parse_mode: "Markdown",
-          reply_to_message_id: ctx.msg.message_id,
-        });
-      }
-      console.log(`Error sending message: ${error.message}`);
-      return;
-    } else {
-      console.log(`An error occured:`, error);
-      await ctx.reply(`*An error occurred.*\n_Error: ${error.message}_`, {
-        parse_mode: "Markdown",
-        reply_to_message_id: ctx.msg.message_id,
-      });
-      return;
-    }
+  );
+  async function deleteMessageWithDelay(fromId, messageId, delayMs) {
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        bot.api
+          .deleteMessage(fromId, messageId)
+          .then(() => resolve())
+          .catch((error) => reject(error));
+      }, delayMs);
+    });
   }
+  await deleteMessageWithDelay(ctx.from.id, statusMessage.message_id, 5000);
 });
 
 // Error

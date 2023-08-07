@@ -1,6 +1,40 @@
 {
+
+  "name": "webhook-telegram-bot",
+
+  "description": "Use this bot to set or delete webhooks for your bots!",
+
+  "version": "0.1.1",
+
+  "main": "bot.js",
+
+  "scripts": {
+
+    "start": "npm i && node bot",
+
+    "test": "echo \"Error: no test specified\" && exit 1"
+
+  },
+
+  "author": {
+
+    "name": "Zubin",
+
+    "email": "me@zubin.org.in",
+
+    "url": "https://zubin.org.in"
+
+  },
+
+  "license": "AGPL-3.0",
+
   "dependencies": {
+
     "dotenv": "^16.0.3",
+
     "grammy": "^1.14.1"
+
   }
+
 }
+
