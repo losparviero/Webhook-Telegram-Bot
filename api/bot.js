@@ -53,7 +53,7 @@ async function log(ctx, next) {
 bot.command("start", async (ctx) => {
   await ctx
     .reply(
-      "*Welcome!* ✨\n_You can set or delete Telegram webhooks with this bot._\n\n*Here are the steps to set webhook:*\n_1. Use the /set command.\n2. Format the message like this\n/set <bot token> <webhook url>_\n\n*Here are the steps to delete webhook:*\n\n_1. Use the /del command.\n2. Format the message like this\n/del <bot token> <wehook url>_",
+      "*Welcome!* ✨\n_You can set or delete Telegram webhooks with this bot._\n\n*Here are the steps to set webhook:*\n_1. Use the /set command.\n2. Format the message like this\n/set <bot token> <webhook url>_\n\n*Here are the steps to delete webhook:*\n_1. Use the /del command.\n2. Format the message like this\n/del <bot token> <wehook url>_",
       {
         parse_mode: "Markdown",
       }
@@ -84,7 +84,7 @@ bot.command("list", async (ctx) => {
 // Set
 
 bot.command("set", async (ctx) => {
-  const input = ctx.msg.text;
+  const input = ctx.message.text;
   const regex = /^\/set\s+(\S+)\s+(\S+)/;
   const matches = input.match(regex);
   if (!matches) {
@@ -141,7 +141,7 @@ bot.command("set", async (ctx) => {
 // Delete
 
 bot.command("del", async (ctx) => {
-  const input = ctx.msg.text;
+  const input = ctx.message.text;
   const regex = /^\/del\s+(\S+)\s+(\S+)/;
   const matches = input.match(regex);
   if (!matches) {
