@@ -13,7 +13,6 @@
 
 require("dotenv").config();
 const { Bot, webhookCallback, GrammyError, HttpError } = require("grammy");
-const { hydrate } = require("@grammyjs/hydrate");
 const https = require("https");
 
 // Bot
@@ -30,7 +29,6 @@ function getSessionKey(ctx) {
 
 bot.use(sequentialize(getSessionKey));
 bot.use(session({ getSessionKey }));
-bot.use(hydrate());
 bot.use(responseTime);
 bot.use(log);
 
